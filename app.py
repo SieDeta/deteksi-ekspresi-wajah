@@ -96,7 +96,7 @@ def main():
 
     elif selected == "Detector":
         st.header("Web-cam Live Feed")
-        st.subheader("* Jika Webcam error maka koneksi RTC dan Streamlit Cloud sedang trouble *")
+        st.write("* Jika Webcam error maka koneksi RTC dan Streamlit Cloud sedang trouble *")
         webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, rtc_configuration=RTC_CONFIGURATION,
                         video_processor_factory=Faceemotion)
         st.subheader("Step by step")
