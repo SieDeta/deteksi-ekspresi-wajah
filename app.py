@@ -8,55 +8,68 @@ from keras.preprocessing.image import img_to_array
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, VideoProcessorBase, WebRtcMode
 
 
-# load model wajah
-emotion_dict = {0:'angry', 1 :'happy', 2: 'neutral', 3:'sad', 4: 'surprise'}
-# load json (berisi model wajah yg sudah dilatih)
+# Model ekspresi emosi yang telah dilatih
+emotion_dict = {0:'Angry', 1 :'Happy', 2: 'Neutral', 3:'Sad', 4: 'Surprise'}
+
+# Membaca deskripsi model dari file JSON
 json_file = open('emotion_model1.json', 'r')
 loaded_model_json = json_file.read()
 json_file.close()
+
+# Membuat model berdasarkan deskripsi dari file JSON
 classifier = model_from_json(loaded_model_json)
 
-# load berat model
+# Memuat bobot model dari file H5 ke dalam model
 classifier.load_weights("emotion_model1.h5")
 
-# mengambil setiap frame dari video webcam
+# Mengambil setiap frame dari video webcam
 try:
+    # Inisialisasi detektor wajah menggunakan haarcascade
     face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 except Exception:
     st.write("Error loading cascade classifiers")
 
-# mengakses kamera dan menampilkan feed webcam
+# Mengakses kamera dan menampilkan feed webcam
 RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
+# Kelas untuk melakukan transformasi pada video
 class Faceemotion(VideoTransformerBase):
     def transform(self, frame):
-        # Setiap frame diubah ke citra ndarray
         img = frame.to_ndarray(format="bgr24")
-
-        #Merubah ke grayscale
         img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # Mendapatkan koordinat wajah
-        faces = face_cascade.detectMultiScale(
-            image=img_gray, scaleFactor=1.3, minNeighbors=5)
+
+        # Deteksi wajah dalam frame
+        faces = face_cascade.detectMultiScale(image=img_gray, scaleFactor=1.3, minNeighbors=5)
+        
         for (x, y, w, h) in faces:
-            cv2.rectangle(img=img, pt1=(x, y), pt2=(
-                x + w, y + h), color=(255, 0, 0), thickness=2)
+            # Menggambar kotak di sekitar wajah yang terdeteksi
+            cv2.rectangle(img=img, pt1=(x, y), pt2=(x + w, y + h), color=(255, 0, 0), thickness=2)
             roi_gray = img_gray[y:y + h, x:x + w]
-            # Diubah ke ukuran 48px x 48px
+
+            # Praproses gambar wajah
             roi_gray = cv2.resize(roi_gray, (48, 48), interpolation=cv2.INTER_AREA)
+            
             if np.sum([roi_gray]) != 0:
+                # Normalisasi Citra
                 roi = roi_gray.astype('float') / 255.0
                 roi = img_to_array(roi)
                 roi = np.expand_dims(roi, axis=0)
-                # Melakukan prediksi ekspresi berdasarkan model
+
+                # Melakukan prediksi ekspresi emosi
                 prediction = classifier.predict(roi)[0]
                 maxindex = int(np.argmax(prediction))
+                confidence = prediction[maxindex] * 100  # Mengubah ke dalam persentase
                 finalout = emotion_dict[maxindex]
-                output = str(finalout)
-            label_position = (x, y)
-            # Label hasil prediksi
-            cv2.putText(img, output, label_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+                
+                # Menentukan hasil prediksi dan menambahkan teks pada frame
+                if confidence > 70:  
+                    output = f"{finalout} ({confidence:.2f}%)"
+                else:
+                    output = "Uncertain"
+                    
+                label_position = (x, y)
+                cv2.putText(img, output, label_position, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
         return img
 
 def main():
@@ -96,7 +109,6 @@ def main():
 
     elif selected == "Detector":
         st.header("Web-cam Live Feed")
-        st.write("* Jika Webcam error maka koneksi RTC dan Streamlit Cloud sedang trouble")
         webrtc_streamer(key="example", mode=WebRtcMode.SENDRECV, rtc_configuration=RTC_CONFIGURATION,
                         video_processor_factory=Faceemotion)
         st.subheader("Step by step")
